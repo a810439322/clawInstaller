@@ -299,7 +299,6 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    Show-Menu");
             ps1Builder.AppendLine("}");
             ps1Builder.AppendLine("");
-            // ------------------------------------------------
             ps1Builder.AppendLine("function Show-Menu {");
             ps1Builder.AppendLine("    Clear-Host");
             ps1Builder.AppendLine("    Write-Host \"  🦞 OpenClaw\"");

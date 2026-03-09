@@ -309,6 +309,18 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    }");
             ps1Builder.AppendLine("}");
             ps1Builder.AppendLine("");
+
+            ps1Builder.AppendLine("function Run-Onboard {");
+            ps1Builder.AppendLine("    Clear-Host");
+            ps1Builder.AppendLine("    Write-Host \"✓ 正在运行 OpenClaw Onboard...\"");
+            ps1Builder.AppendLine("    Write-Host \"========================================\"");
+            ps1Builder.AppendLine("    & npx openclaw onboard");
+            ps1Builder.AppendLine("    Write-Host \"\"");
+            ps1Builder.AppendLine("    Write-Host \"设置向导结束！按任意键返回主菜单...\"");
+            ps1Builder.AppendLine("    $null = $host.UI.RawUI.ReadKey(\"NoEcho,IncludeKeyDown\")");
+            ps1Builder.AppendLine("    Show-Menu");
+            ps1Builder.AppendLine("}");
+            ps1Builder.AppendLine("");
             ps1Builder.AppendLine("function Run-Gateway {");
             ps1Builder.AppendLine("    $path1 = \"$env:USERPROFILE\\.openclaw\\gateway.cmd\"");
             ps1Builder.AppendLine("    $path2 = \"$env:USERPROFILE\\gateway.cmd\"");
@@ -406,3 +418,4 @@ namespace OpenClawInstaller
         }
     }
 }
+

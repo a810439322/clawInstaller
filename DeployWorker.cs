@@ -15,6 +15,7 @@ namespace OpenClawInstaller
 
         private readonly string nodeUrl = "https://registry.npmmirror.com/-/binary/node/v25.8.0/node-v25.8.0-win-x64.zip";
         private readonly string gitUrl = "https://npmmirror.com/mirrors/git-for-windows/v2.44.0.windows.1/MinGit-2.44.0-64-bit.zip";
+        private readonly string pythonUrl = "https://registry.npmmirror.com/-/binary/python/3.12.8/python-3.12.8-embed-amd64.zip";
 
         public DeployWorker(string installDir, string githubProxy, bool isDebug = false)
         {
@@ -36,9 +37,11 @@ namespace OpenClawInstaller
 
             string nodeZipPath = Path.Combine(installDir, "node_env.zip");
             string gitZipPath = Path.Combine(installDir, "mingit.zip");
+            string pythonZipPath = Path.Combine(installDir, "python_embed.zip");
 
             string nodejsDir = Path.Combine(installDir, "nodejs");
             string gitDir = Path.Combine(installDir, "git_env");
+            string pythonDir = Path.Combine(installDir, "python");
             string appDir = Path.Combine(installDir, "openclaw_app");
 
             // ==========================================
@@ -90,7 +93,36 @@ namespace OpenClawInstaller
             }
 
             // ==========================================
-            // 3. 初始化 OpenClaw 本地环境与配置
+            // 3. 处理 Python Embed 环境
+            // ==========================================
+            if (Directory.Exists(pythonDir))
+            {
+                logger.Report("-> 检测到 Python 目录已存在，跳过下载与解压。");
+                progress.Report(55);
+            }
+            else
+            {
+                if (File.Exists(pythonZipPath) && IsValidZip(pythonZipPath, logger))
+                {
+                    logger.Report("-> 检测到完整的 Python 压缩包，跳过下载。");
+                }
+                else
+                {
+                    logger.Report("正在下载 Python 环境...");
+                    await Utils.DownloadFileAsync(pythonUrl, pythonZipPath, p => progress.Report(40 + (int)(p * 0.1)));
+                }
+                logger.Report("正在解压 Python...");
+                Utils.ExtractZipDirect(pythonZipPath, pythonDir);
+                progress.Report(55);
+            }
+
+            // 配置 Python pip（自动配置）
+            logger.Report("正在配置 Python pip 环境...");
+            await SetupPythonPipAsync(pythonDir, logger);
+            progress.Report(60);
+
+            // ==========================================
+            // 4. 初始化 OpenClaw 本地环境与配置
             // ==========================================
             Directory.CreateDirectory(appDir);
             
@@ -101,12 +133,12 @@ namespace OpenClawInstaller
             }
 
             // ==========================================
-            // 4. 配置 NPM 环境、淘宝源和 Git 代理策略
+            // 5. 配置 NPM 环境、淘宝源和 Git 代理策略
             // ==========================================
             string gitCmdDir = Path.Combine(gitDir, "cmd");
             string gitExePath = Path.Combine(gitCmdDir, "git.exe");
             string npmCmdPath = Path.Combine(nodejsDir, "npm.cmd");
-            string customPathEnv = $"{nodejsDir};{gitCmdDir};{Environment.GetEnvironmentVariable("PATH")}";
+            string customPathEnv = $"{nodejsDir};{pythonDir};{gitCmdDir};{Environment.GetEnvironmentVariable("PATH")}";
 
             logger.Report("正在配置 npm 淘宝镜像源...");
             progress.Report(45);
@@ -283,7 +315,8 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("");
 
             ps1Builder.AppendLine("$host.UI.RawUI.WindowTitle = \"OpenClaw启动器\"");
-            ps1Builder.AppendLine("$env:PATH = \"$scriptDir\\nodejs;$scriptDir\\git_env\\cmd;$env:PATH\"");
+            ps1Builder.AppendLine("$env:OPENCLAW_STATE_DIR = \"$scriptDir\\.openclaw\"");
+            ps1Builder.AppendLine("$env:PATH = \"$scriptDir\\nodejs;$scriptDir\\python;$scriptDir\\git_env\\cmd;$env:PATH\"");
             ps1Builder.AppendLine("Set-Location -Path \"$scriptDir\\openclaw_app\"");
             ps1Builder.AppendLine("");
                         // --- 插入修复代码：定义缺失的 Run-Onboard 函数 ---
@@ -292,6 +325,7 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    Write-Host \"✓ 正在运行 OpenClaw Onboard 向导...\" -ForegroundColor Cyan");
             ps1Builder.AppendLine("    Write-Host \"提示: 首次运行或更换 API Key 时需要执行此操作。\"");
             ps1Builder.AppendLine("    Write-Host \"========================================\"");
+            ps1Builder.AppendLine("    $env:OPENCLAW_STATE_DIR = \"$scriptDir\\.openclaw\"");
             ps1Builder.AppendLine("    npx openclaw onboard");
             ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("    Write-Host \"向导运行结束！按任意键返回主菜单...\"");
@@ -324,11 +358,14 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("");
 
             ps1Builder.AppendLine("function Run-Gateway {");
+            ps1Builder.AppendLine("    $localPath = \"$scriptDir\\.openclaw\\gateway.cmd\"");
             ps1Builder.AppendLine("    $path1 = \"$env:USERPROFILE\\.openclaw\\gateway.cmd\"");
             ps1Builder.AppendLine("    $path2 = \"$env:USERPROFILE\\gateway.cmd\"");
             ps1Builder.AppendLine("    $gatewayPath = $null");
             ps1Builder.AppendLine("");
-            ps1Builder.AppendLine("    if (Test-Path $path1) {");
+            ps1Builder.AppendLine("    if (Test-Path $localPath) {");
+            ps1Builder.AppendLine("        $gatewayPath = $localPath");
+            ps1Builder.AppendLine("    } elseif (Test-Path $path1) {");
             ps1Builder.AppendLine("        $gatewayPath = $path1");
             ps1Builder.AppendLine("    } elseif (Test-Path $path2) {");
             ps1Builder.AppendLine("        $gatewayPath = $path2");
@@ -338,6 +375,7 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("        Clear-Host");
             ps1Builder.AppendLine("        Write-Host \"✓ 正在运行 Gateway... ($gatewayPath)\"");
             ps1Builder.AppendLine("        Write-Host \"========================================\"");
+            ps1Builder.AppendLine("        $env:OPENCLAW_STATE_DIR = \"$scriptDir\\.openclaw\"");
             ps1Builder.AppendLine("        & $gatewayPath");
             ps1Builder.AppendLine("        Write-Host \"\"");
             ps1Builder.AppendLine("        Write-Host \"Gateway 执行结束！按任意键返回主菜单...\"");
@@ -345,6 +383,7 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    } else {");
             ps1Builder.AppendLine("        Write-Host \"错误: 未找到 Gateway 启动脚本。请确认您已运行过向导配置。\"");
             ps1Builder.AppendLine("        Write-Host \"尝试查找的路径:\"");
+            ps1Builder.AppendLine("        Write-Host \" - $localPath\"");
             ps1Builder.AppendLine("        Write-Host \" - $path1\"");
             ps1Builder.AppendLine("        Write-Host \" - $path2\"");
             ps1Builder.AppendLine("        Write-Host \"按任意键返回主菜单...\"");
@@ -354,7 +393,7 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("}");
             ps1Builder.AppendLine("");
             ps1Builder.AppendLine("function Open-Terminal {");
-            ps1Builder.AppendLine("    $initCmd = \"Set-Location -LiteralPath `\"$scriptDir\\openclaw_app`\"; `$env:PATH = `\"$scriptDir\\nodejs;$scriptDir\\git_env\\cmd;`$env:PATH`\"\";");
+            ps1Builder.AppendLine("    $initCmd = \"Set-Location -LiteralPath `\"$scriptDir\\openclaw_app`\"; `$env:PATH = `\"$scriptDir\\nodejs;$scriptDir\\python;$scriptDir\\git_env\\cmd;`$env:PATH`\"; `$env:OPENCLAW_STATE_DIR = `\"$scriptDir\\.openclaw`\"\";");
             ps1Builder.AppendLine("    $encodedCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($initCmd))");
             ps1Builder.AppendLine("    if (Get-Command wt.exe -ErrorAction SilentlyContinue) {");
             ps1Builder.AppendLine("        Start-Process wt.exe -ArgumentList \"-w new-tab --title OpenClaw终端 powershell -NoExit -EncodedCommand $encodedCmd\"");
@@ -389,7 +428,7 @@ namespace OpenClawInstaller
             // 7. 清理临时文件
             // ==========================================
             logger.Report("正在清理临时文件...");
-            string[] zips = { nodeZipPath, gitZipPath };
+            string[] zips = { nodeZipPath, gitZipPath, pythonZipPath };
             foreach (var zip in zips) { if (File.Exists(zip)) File.Delete(zip); }
             
             string npmCache = Path.Combine(installDir, ".npm-cache");
@@ -397,6 +436,100 @@ namespace OpenClawInstaller
 
             progress.Report(100);
             logger.Report("部署完成！");
+        }
+
+        private async Task SetupPythonPipAsync(string pythonDir, IProgress<string> logger)
+        {
+            try
+            {
+                // 1. 修改 python312._pth 文件，启用 site-packages
+                string pthFile = Path.Combine(pythonDir, "python312._pth");
+                if (File.Exists(pthFile))
+                {
+                    string[] pthLines = File.ReadAllLines(pthFile);
+                    var newLines = new List<string>();
+                    bool modified = false;
+
+                    foreach (string line in pthLines)
+                    {
+                        if (line.TrimStart().StartsWith("#import site"))
+                        {
+                            newLines.Add("import site"); // 取消注释
+                            modified = true;
+                        }
+                        else
+                        {
+                            newLines.Add(line);
+                        }
+                    }
+
+                    if (modified)
+                    {
+                        File.WriteAllLines(pthFile, newLines, Encoding.UTF8);
+                        DebugLog(logger, "已启用 Python site-packages 支持");
+                    }
+                }
+
+                // 2. 下载 get-pip.py
+                string getPipPath = Path.Combine(pythonDir, "get-pip.py");
+                if (!File.Exists(Path.Combine(pythonDir, "Scripts", "pip.exe")))
+                {
+                    logger.Report("  -> 正在下载 pip 安装器...");
+                    string getPipUrl = "https://bootstrap.pypa.io/get-pip.py";
+                    await Utils.DownloadFileAsync(getPipUrl, getPipPath, p => { });
+
+                    // 3. 运行 get-pip.py 安装 pip
+                    logger.Report("  -> 正在安装 pip...");
+                    string pythonExe = Path.Combine(pythonDir, "python.exe");
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = pythonExe,
+                        Arguments = $"\"{getPipPath}\" --no-warn-script-location",
+                        WorkingDirectory = pythonDir,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        StandardOutputEncoding = Encoding.UTF8
+                    };
+
+                    using (var process = new Process { StartInfo = psi })
+                    {
+                        process.Start();
+                        await process.WaitForExitAsync();
+
+                        if (process.ExitCode == 0)
+                        {
+                            DebugLog(logger, "pip 安装成功");
+                        }
+                        else
+                        {
+                            logger.Report($"[警告] pip 安装返回非零退出码: {process.ExitCode}");
+                        }
+                    }
+
+                    // 删除 get-pip.py
+                    if (File.Exists(getPipPath)) File.Delete(getPipPath);
+                }
+                else
+                {
+                    DebugLog(logger, "pip 已存在，跳过安装");
+                }
+
+                // 4. 创建 pip.ini 配置文件（清华源）
+                string pipIniPath = Path.Combine(pythonDir, "pip.ini");
+                string pipIniContent = @"[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+trusted-host = pypi.tuna.tsinghua.edu.cn
+";
+                File.WriteAllText(pipIniPath, pipIniContent, Encoding.UTF8);
+                DebugLog(logger, "已配置 pip 清华镜像源");
+            }
+            catch (Exception ex)
+            {
+                logger.Report($"[警告] Python pip 配置失败: {ex.Message}");
+                logger.Report("Python 仍然可用，但可能需要手动配置 pip");
+            }
         }
 
         private bool IsValidZip(string filePath, IProgress<string> logger)

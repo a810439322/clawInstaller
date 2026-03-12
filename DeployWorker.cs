@@ -500,8 +500,32 @@ namespace OpenClawInstaller
                 if (!File.Exists(Path.Combine(pythonDir, "Scripts", "pip.exe")))
                 {
                     logger.Report("  -> 正在下载 pip 安装器...");
-                    string getPipUrl = "https://bootstrap.pypa.io/get-pip.py";
-                    await Utils.DownloadFileAsync(getPipUrl, getPipPath, p => { });
+                    // 尝试多个镜像源
+                    string[] getPipUrls = {
+                        "https://bootstrap.pypa.io/get-pip.py",
+                        "https://pypi.tuna.tsinghua.edu.cn/packages/py2.py3/p/pip/get-pip.py"
+                    };
+
+                    bool downloaded = false;
+                    foreach (string url in getPipUrls)
+                    {
+                        try
+                        {
+                            await Utils.DownloadFileAsync(url, getPipPath, p => { });
+                            downloaded = true;
+                            break;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (!downloaded || !File.Exists(getPipPath))
+                    {
+                        logger.Report("[警告] get-pip.py 下载失败，跳过 pip 安装");
+                        return;
+                    }
 
                     // 3. 运行 get-pip.py 安装 pip
                     logger.Report("  -> 正在安装 pip...");
@@ -521,6 +545,8 @@ namespace OpenClawInstaller
                     using (var process = new Process { StartInfo = psi })
                     {
                         process.Start();
+                        string output = await process.StandardOutput.ReadToEndAsync();
+                        string error = await process.StandardError.ReadToEndAsync();
                         await process.WaitForExitAsync();
 
                         if (process.ExitCode == 0)
@@ -530,6 +556,11 @@ namespace OpenClawInstaller
                         else
                         {
                             logger.Report($"[警告] pip 安装返回非零退出码: {process.ExitCode}");
+                            if (!string.IsNullOrEmpty(error))
+                            {
+                                DebugLog(logger, $"错误输出: {error}");
+                            }
+                            logger.Report("提示: Python embed 版本可能缺少必需模块，pip 可能无法安装");
                         }
                     }
 

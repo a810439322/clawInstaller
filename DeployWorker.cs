@@ -343,11 +343,12 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("    Write-Host \"1. 运行 Onboard 向导 (官方引导设置，英文版)\"");
             ps1Builder.AppendLine("    Write-Host \"2. 运行 Gateway\"");
-            ps1Builder.AppendLine("    Write-Host \"3. 从现有配置迁移 (跳过 Onboard)\")");
-            ps1Builder.AppendLine("    Write-Host \"4. 打开终端 (使用npx openclaw运行启动claw cli)\")");
+            ps1Builder.AppendLine("    Write-Host \"3. 从现有配置迁移 (跳过 Onboard)\"");
+            ps1Builder.AppendLine("    Write-Host \"4. 打开终端\"");
             ps1Builder.AppendLine("    Write-Host \"5. 退出\"");
             ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("    $choice = Read-Host \"请输入选项 (1-5)，首次运行可以选择 1 或 3 \"");
+
             ps1Builder.AppendLine("    switch ($choice) {");
             ps1Builder.AppendLine("        \"1\" { Run-Onboard }");
             ps1Builder.AppendLine("        \"2\" { Run-Gateway }");

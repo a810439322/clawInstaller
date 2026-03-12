@@ -434,10 +434,17 @@ namespace OpenClawInstaller
             // ==========================================
             logger.Report("正在生成 start.bat 快捷启动文件...");
             string batPath = Path.Combine(installDir, "点我运行.bat");
-            // 使用带有绕过执行策略参数的命令
+            // 使用带有绕过执行策略参数的命令，并添加错误处理
             string batContent = "@echo off\r\n" +
                                 "pushd \"%~dp0\"\r\n" +
-                                "powershell -ExecutionPolicy Bypass -File \"start.ps1\"\r\n" +
+                                "echo 正在启动 OpenClaw...\r\n" +
+                                "echo.\r\n" +
+                                "powershell -ExecutionPolicy Bypass -NoExit -File \"start.ps1\"\r\n" +
+                                "if errorlevel 1 (\r\n" +
+                                "    echo.\r\n" +
+                                "    echo 启动失败，请检查错误信息。\r\n" +
+                                "    pause\r\n" +
+                                ")\r\n" +
                                 "popd";
             File.WriteAllText(batPath, batContent, Encoding.Default); 
             DebugLog(logger, $"批处理启动文件已保存至: {batPath}");

@@ -343,7 +343,7 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("    Write-Host \"1. 运行 Onboard 向导 (官方引导设置，英文版)\"");
             ps1Builder.AppendLine("    Write-Host \"2. 运行 Gateway\"");
-            ps1Builder.AppendLine("    Write-Host \"3. 从现有配置迁移 (跳过 Onboard)\"");
+            ps1Builder.AppendLine("    Write-Host \"3. 从用户目录迁移配置 (跳过 Onboard)\"");
             ps1Builder.AppendLine("    Write-Host \"4. 打开终端\"");
             ps1Builder.AppendLine("    Write-Host \"5. 退出\"");
             ps1Builder.AppendLine("    Write-Host \"\"");
@@ -364,8 +364,13 @@ namespace OpenClawInstaller
             ps1Builder.AppendLine("    Clear-Host");
             ps1Builder.AppendLine("    Write-Host \"✓ 配置迁移向导\" -ForegroundColor Cyan");
             ps1Builder.AppendLine("    Write-Host \"========================================\"");
+            ps1Builder.AppendLine("    Write-Host \"此功能将从用户目录复制 OpenClaw 配置到当前安装目录\" -ForegroundColor Yellow");
+            ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("    $sourcePath = \"$env:USERPROFILE\\.openclaw\"");
             ps1Builder.AppendLine("    $targetPath = \"$scriptDir\\.openclaw\"");
+            ps1Builder.AppendLine("    Write-Host \"源目录: $sourcePath\"");
+            ps1Builder.AppendLine("    Write-Host \"目标目录: $targetPath\"");
+            ps1Builder.AppendLine("    Write-Host \"\"");
             ps1Builder.AppendLine("");
             ps1Builder.AppendLine("    if (Test-Path $targetPath) {");
             ps1Builder.AppendLine("        Write-Host \"目标配置目录已存在: $targetPath\" -ForegroundColor Yellow");
